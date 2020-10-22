@@ -1,0 +1,7 @@
+oldFileName: Old.xlsx
+newFileName: New.xlsx
+sheets:
+   - sheetName: UserDetails
+     uniqueKeyColumns:
+        - AccountNumber
+        - Name
