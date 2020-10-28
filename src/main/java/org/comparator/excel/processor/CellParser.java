@@ -38,11 +38,11 @@ public class CellParser {
 		newWorkbookRecords = getNewWorkBookRecords();
 	}
 
-	public Map<String, List<String>> getCommonUniqueKeys() {
-		Map<String, List<String>> uniqueKeyMap = new LinkedHashMap<>();
+	public Map<String, Map<String, String>> getCommonUniqueKeys() {
+		Map<String, Map<String, String>> uniqueKeyMap = new LinkedHashMap<>();
 		Row oldWorkbookHeaderRow = oldWorkbook.getSheet(sheetName).getRow(oldWorkbook.getSheet(sheetName).getFirstRowNum());
 		Row newWorkbookHeaderRow = newWorkbook.getSheet(sheetName).getRow(newWorkbook.getSheet(sheetName).getFirstRowNum());
-		List<String> referenceColumn = null;
+		Map<String, String> referenceColumn = null;
 		String oldWorkbookCellValue = "";
 		String newWorkbookCellValue = "";
 		List<String> uniqueKeyColumnList = new ArrayList<>();
@@ -56,7 +56,6 @@ public class CellParser {
 				for(int newWorkbookcell = 0; newWorkbookcell < newWorkbookHeaderRow.getLastCellNum(); newWorkbookcell++) {
 					newWorkbookCellValue = newWorkbookHeaderRow.getCell(newWorkbookcell).getStringCellValue().trim();
 					if(givenUniqueKeyColumnList.contains(newWorkbookCellValue)) {
-						
 						if(!uniqueKeyColumnList.contains(newWorkbookCellValue)) uniqueKeyColumnList.add(newWorkbookCellValue);
 					}
 				}
@@ -70,31 +69,37 @@ public class CellParser {
 			for(int row = 0; row <= oldWorkbookRowNum ; row++) {
 				oldWorkbookCellValue = "";
 				for(int oldWorkbookCell = 0; oldWorkbookCell < uniqueKeyColumnList.size(); oldWorkbookCell++) {
-					oldWorkbookCellValue += getCellValue(oldWorkbook, sheetName, uniqueKeyColumnList.get(oldWorkbookCell), row);
+					if(uniqueKeyColumnList.get(oldWorkbookCell).equals(uniqueKeyColumnList.get(0)))
+						oldWorkbookCellValue += getCellValue(oldWorkbook, sheetName, uniqueKeyColumnList.get(oldWorkbookCell), row).trim();
+					else oldWorkbookCellValue += "_" + getCellValue(oldWorkbook, sheetName, uniqueKeyColumnList.get(oldWorkbookCell), row).trim();
 				}
 				if(oldWorkbookCellValue != "") oldWorkBookUniqueKeyList.add(oldWorkbookCellValue);
 			}
 			for(int row = 0; row <= oldWorkBookUniqueKeyList.size() ; row++) {
-				referenceColumn = new LinkedList<>();
+				referenceColumn = new LinkedHashMap<>();
 				newWorkbookCellValue = "";
 				for(int newWorkbookCell = 0; newWorkbookCell < uniqueKeyColumnList.size(); newWorkbookCell++) {
-					referenceColumn.add(getCellValue(newWorkbook, sheetName, uniqueKeyColumnList.get(newWorkbookCell), row));
-					newWorkbookCellValue += getCellValue(newWorkbook, sheetName, uniqueKeyColumnList.get(newWorkbookCell), row);
+					referenceColumn.put(uniqueKeyColumnList.get(newWorkbookCell), getCellValue(newWorkbook, sheetName, uniqueKeyColumnList.get(newWorkbookCell), row).trim());
+					if(uniqueKeyColumnList.get(newWorkbookCell).equals(uniqueKeyColumnList.get(0)))
+						newWorkbookCellValue += getCellValue(newWorkbook, sheetName, uniqueKeyColumnList.get(newWorkbookCell), row).trim();
+					else newWorkbookCellValue += "_" + getCellValue(newWorkbook, sheetName, uniqueKeyColumnList.get(newWorkbookCell), row).trim();
+					
 				}
-				if(!referenceColumn.isEmpty() && newWorkbookCellValue != "" && oldWorkBookUniqueKeyList.contains(newWorkbookCellValue)) uniqueKeyMap.put(newWorkbookCellValue, referenceColumn);
+				if(!referenceColumn.isEmpty() && newWorkbookCellValue != "" && oldWorkBookUniqueKeyList.contains(newWorkbookCellValue)) 
+					uniqueKeyMap.put(newWorkbookCellValue, referenceColumn);
 			}
 		}
 		return uniqueKeyMap;
 	}
 	
-	public Map<String, Map<String, Map<String, String>>> getModifiedAndDeletedValues(Map<String, List<String>> uniqueKeyMap) {
+	public Map<Map<String, String>, Map<String, Map<String, String>>> getModifiedRecords(Map<String, Map<String, String>> uniqueKeyMap) {
 		Map<String, String> oldWorkbookRowValuesMap, newWorkbookRowValuesMap;
 		Map<String, Map<String, String>> unequalValuesMap = null;
 		Map<String, Map<String, String>> unequalColumnValuesMap = null;
-		Map<String, Map<String, Map<String, String>>> modifiedAndDeletedValuesMap = new LinkedHashMap<>();
+		Map<Map<String, String>, Map<String, Map<String, String>>> modifiedRecordsMap = new LinkedHashMap<>();
 		
-		Set<Entry<String, List<String>>> uniqueKeyMapEntries = uniqueKeyMap.entrySet();
-		for(Entry<String, List<String>> uniqueKeyEntry : uniqueKeyMapEntries) {
+		Set<Entry<String, Map<String, String>>> uniqueKeyMapEntries = uniqueKeyMap.entrySet();
+		for(Entry<String, Map<String, String>> uniqueKeyEntry : uniqueKeyMapEntries) {
 			unequalValuesMap = new LinkedHashMap<>();
 			unequalColumnValuesMap = new LinkedHashMap<>();
 			oldWorkbookRowValuesMap = oldWorkbookRecords.get(uniqueKeyEntry.getKey());
@@ -105,12 +110,12 @@ public class CellParser {
 				}
 				if(!oldWorkbookRowValuesMap.equals(newWorkbookRowValuesMap)) {
 					unequalColumnValuesMap = getUnequalColumnValues(oldWorkbookRowValuesMap, newWorkbookRowValuesMap);
-					modifiedAndDeletedValuesMap.put(uniqueKeyEntry.getKey(), unequalColumnValuesMap);
+					modifiedRecordsMap.put(uniqueKeyMap.get(uniqueKeyEntry.getKey()), unequalColumnValuesMap);
 				}
 			}
-			if(!unequalValuesMap.isEmpty()) modifiedAndDeletedValuesMap.put(uniqueKeyEntry.getKey(), unequalValuesMap);
+			if(!unequalValuesMap.isEmpty()) modifiedRecordsMap.put(uniqueKeyMap.get(uniqueKeyEntry.getKey()), unequalValuesMap);
 		}
-		return modifiedAndDeletedValuesMap;
+		return modifiedRecordsMap;
 	}
 
 	private Map<String, Map<String, String>> getUnequalColumnValues(Map<String, String> oldWorkbookRowValuesMap,
@@ -137,24 +142,25 @@ public class CellParser {
 		return unequalColumnValuesMap;
 	}
 
-	public Map<String, Map<String, String>> getInsertedRows(Map<String, List<String>> uniqueKeyMap) {
+	public Map<String, Map<String, String>> getAddedRecords(Map<String, Map<String, String>> uniqueKeyMap) {
 		Map<String, Map<String, String>> uniqueOldWorkbookRecords = oldWorkbookRecords.entrySet().stream()
 				.filter(entry -> !uniqueKeyMap.keySet().contains(entry.getKey()))
 				.collect(Collectors.toMap(entry -> entry.getKey(), entry -> entry.getValue()));
-		Map<String, Map<String, String>> uniqueNewWorkbookRecords = newWorkbookRecords.entrySet().stream()
+		Map<String, Map<String, String>> uniqueNewWorkbookRecords = new LinkedHashMap<>();
+		uniqueNewWorkbookRecords = newWorkbookRecords.entrySet().stream()
 				.filter(entry -> !uniqueKeyMap.keySet().contains(entry.getKey()))
 				.collect(Collectors.toMap(entry -> entry.getKey(), entry -> entry.getValue()));
 		
-		Map<String, Map<String, String>> insertedRowsMap = uniqueNewWorkbookRecords.entrySet().stream()
+		Map<String, Map<String, String>> addedRecordsMap = uniqueNewWorkbookRecords.entrySet().stream()
 				.filter(entry -> !uniqueOldWorkbookRecords.keySet().contains(entry.getKey()))
 				.filter(entry -> !entry.getKey().isEmpty())
 				.collect(Collectors.toMap(entry -> entry.getKey(), entry -> entry.getValue()));
 		
-		return insertedRowsMap;
+		return addedRecordsMap;
 
 	}
 	
-	public Map<String, Map<String, String>> getDeletedRows(Map<String, List<String>> uniqueKeyMap) {
+	public Map<String, Map<String, String>> getDeletedRecords(Map<String, Map<String, String>> uniqueKeyMap) {
 		Map<String, Map<String, String>> uniqueOldWorkbookRecords = oldWorkbookRecords.entrySet().stream()
 				.filter(entry -> !uniqueKeyMap.keySet().contains(entry.getKey()))
 				.collect(Collectors.toMap(entry -> entry.getKey(), entry -> entry.getValue()));
@@ -185,9 +191,7 @@ public class CellParser {
 					oldNewValuesMap.put(oldWorkbookValuesMapEntry.getValue(), newWorkbookRowValuesMap.get(oldWorkbookValuesMapEntry.getKey()));
 				}
 			}
-			if(key !="" && oldNewValuesMap != null && !oldNewValuesMap.isEmpty()) {
-				unequalKeyValuesMap.put(key, oldNewValuesMap);
-			} 
+			if(key !="" && oldNewValuesMap != null && !oldNewValuesMap.isEmpty()) unequalKeyValuesMap.put(key, oldNewValuesMap);
 		} 
 		return unequalKeyValuesMap;
 	}
@@ -211,16 +215,22 @@ public class CellParser {
 			int columnSize = newWorkbook.getSheet(sheetName).getRow(newWorkbook.getSheet(sheetName).getFirstRowNum()).getLastCellNum();
 			for(int cell = 0; cell < columnSize; cell++) {
 				String newWorkbookColumnName = newWorkbook.getSheet(sheetName).getRow(newWorkbook.getSheet(sheetName).getFirstRowNum()).getCell(cell).getStringCellValue();
-				newWorkbookCellValue = getCellValue(newWorkbook, sheetName, newWorkbookColumnName, row);
-				newWorkbookrowValuesMap.put(newWorkbookColumnName, newWorkbookCellValue);
-				if(uniqueKeyColumns.contains(newWorkbookColumnName)) {
-					uniqueKeyValuesSet.add(newWorkbookCellValue);
+				newWorkbookCellValue = getCellValue(newWorkbook, sheetName, newWorkbookColumnName, row).trim();
+				if(newWorkbookCellValue != "" && newWorkbookCellValue != null) {
+					newWorkbookrowValuesMap.put(newWorkbookColumnName, newWorkbookCellValue);
+					if(uniqueKeyColumns.contains(newWorkbookColumnName)) {
+						uniqueKeyValuesSet.add(newWorkbookCellValue);
+					}
 				}
 			}
-			for(String key : uniqueKeyValuesSet) {
-				uniqueKey += key;
+			if(uniqueKeyValuesSet != null && !uniqueKeyValuesSet.isEmpty()) {
+				for(String key : uniqueKeyValuesSet) {
+					if(uniqueKeyValuesSet.toArray()[0].equals(key)) uniqueKey += key;
+					else uniqueKey += "_" + key;
+				}
 			}
-			newWorkbookRecords.put(uniqueKey, newWorkbookrowValuesMap);
+			if(uniqueKey != null && !uniqueKey.isEmpty() && newWorkbookrowValuesMap != null && !newWorkbookrowValuesMap.isEmpty()) 
+				newWorkbookRecords.put(uniqueKey, newWorkbookrowValuesMap);
 		}
 		return newWorkbookRecords;
 	}
@@ -238,16 +248,22 @@ public class CellParser {
 			int columnSize = oldWorkbook.getSheet(sheetName).getRow(oldWorkbook.getSheet(sheetName).getFirstRowNum()).getLastCellNum();
 			for(int cell = 0; cell < columnSize; cell++) {
 				String oldWorkbookColumnName = oldWorkbook.getSheet(sheetName).getRow(oldWorkbook.getSheet(sheetName).getFirstRowNum()).getCell(cell).getStringCellValue();
-				oldWorkbookCellValue = getCellValue(oldWorkbook, sheetName, oldWorkbookColumnName, row);
-				oldWorkbookRowValuesMap.put(oldWorkbookColumnName, oldWorkbookCellValue);
-				if(uniqueKeyColumns.contains(oldWorkbookColumnName)) {
-					uniqueKeyValuesSet.add(oldWorkbookCellValue);
+				oldWorkbookCellValue = getCellValue(oldWorkbook, sheetName, oldWorkbookColumnName, row).trim();
+				if(oldWorkbookCellValue != "" && oldWorkbookCellValue != null) {
+					oldWorkbookRowValuesMap.put(oldWorkbookColumnName, oldWorkbookCellValue);
+					if(uniqueKeyColumns.contains(oldWorkbookColumnName)) {
+						uniqueKeyValuesSet.add(oldWorkbookCellValue);
+					}
 				}
 			}
-			for(String key : uniqueKeyValuesSet) {
-				uniqueKey += key;
+			if(uniqueKeyValuesSet != null && !uniqueKeyValuesSet.isEmpty()) {
+				for(String key : uniqueKeyValuesSet) {
+					if(uniqueKeyValuesSet.toArray()[0].equals(key)) uniqueKey += key;
+					else uniqueKey += "_" + key;
+				}
 			}
-			oldWorkbookRecords.put(uniqueKey, oldWorkbookRowValuesMap);
+			if(uniqueKey != null && !uniqueKey.isEmpty() && oldWorkbookRowValuesMap != null && !oldWorkbookRowValuesMap.isEmpty()) 
+				oldWorkbookRecords.put(uniqueKey, oldWorkbookRowValuesMap);
 		}
 		return oldWorkbookRecords;
 	}

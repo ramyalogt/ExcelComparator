@@ -1,7 +1,7 @@
-oldFileName: Old.xlsx
-newFileName: New.xlsx
+oldFileName: Finacle e-Banking - Services Register.xlsx
+newFileName: DEH11.11APIs.xlsx
 sheets:
-   - sheetName: UserDetails
+   - sheetName: DEH
      uniqueKeyColumns:
-        - AccountNumber
-        - Name
+        - REST URI
+        - Function of the URI
